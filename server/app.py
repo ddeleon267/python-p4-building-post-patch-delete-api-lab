@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
-from flask import Flask, make_response, jsonify
-from flask_migrate import Migrate
 
+#does not start with migrations
+from flask import Flask, make_response, jsonify, request
+from flask_migrate import Migrate
+import pdb
 from models import db, Bakery, BakedGood
 
 app = Flask(__name__)
@@ -20,26 +22,47 @@ def home():
 
 @app.route('/bakeries')
 def bakeries():
-
     bakeries = Bakery.query.all()
     bakeries_serialized = [bakery.to_dict() for bakery in bakeries]
-
-    response = make_response(
-        bakeries_serialized,
-        200
-    )
+    response = make_response(bakeries_serialized, 200)
+    return response
+  
+@app.route('/bakeries/<int:id>', methods=['GET', 'PATCH'])
+def bakery_by_id(id):
+    bakery = Bakery.query.filter_by(id=id).first()
+    if request.method == 'GET':
+        response = make_response(bakery.to_dict(),200)
+    elif request.method == 'PATCH':
+        # if you wanna get fancy
+        # for attr in request.form:
+        #     setattr(bakery, attr, request.form.get(attr))
+        bakery.name=request.form.get('name')
+        db.session.add(bakery)
+        db.session.commit()
+        response = make_response(bakery.to_dict(), 200) #should be 204?
+    
     return response
 
-@app.route('/bakeries/<int:id>')
-def bakery_by_id(id):
+@app.route('/baked_goods', methods=['POST'])
+def baked_goods():
+    if request.method == 'POST':
+        new_baked_good = BakedGood(
+            name=request.form.get('name'),
+            price=request.form.get('price'),
+            bakery_id=request.form.get('bakery_id')
+         )
+        db.session.add(new_baked_good)
+        db.session.commit()
+        response = make_response(new_baked_good.to_dict(), 201)
+    
+    return response
 
-    bakery = Bakery.query.filter_by(id=id).first()
-    bakery_serialized = bakery.to_dict()
-
-    response = make_response(
-        bakery_serialized,
-        200
-    )
+@app.route('/baked_goods/<int:id>', methods=['DELETE'])
+def baked_good_by_id(id):
+    baked_good = BakedGood.query.filter_by(id=id).first()
+    db.session.delete(baked_good)
+    db.session.commit()
+    response = make_response({'message': 'successfully deleted'}, 200)
     return response
 
 @app.route('/baked_goods/by_price')
@@ -49,10 +72,7 @@ def baked_goods_by_price():
         bg.to_dict() for bg in baked_goods_by_price
     ]
     
-    response = make_response(
-        baked_goods_by_price_serialized,
-        200
-    )
+    response = make_response(baked_goods_by_price_serialized, 200)
     return response
 
 @app.route('/baked_goods/most_expensive')
@@ -60,10 +80,7 @@ def most_expensive_baked_good():
     most_expensive = BakedGood.query.order_by(BakedGood.price.desc()).limit(1).first()
     most_expensive_serialized = most_expensive.to_dict()
 
-    response = make_response(
-        most_expensive_serialized,
-        200
-    )
+    response = make_response(most_expensive_serialized, 200)
     return response
 
 if __name__ == '__main__':
